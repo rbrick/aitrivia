@@ -7,6 +7,7 @@ import { RoomLobby } from "@/components/RoomLobby";
 import { QuestionCard } from "@/components/QuestionCard";
 import { PlayerList } from "@/components/PlayerList";
 import { GameOver } from "@/components/GameOver";
+import { ChatBox } from "@/components/ChatBox";
 
 interface Props {
   params: Promise<{ joinCode: string }>;
@@ -18,7 +19,7 @@ export default function RoomPage({ params }: Props) {
   const playerName = searchParams.get("name") ?? "";
 
   const router = useRouter();
-  const { phase, room, playerId, lastResult, errorMessage, submitAnswer } = useGameSocket(
+  const { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat } = useGameSocket(
     joinCode,
     playerName
   );
@@ -73,6 +74,10 @@ export default function RoomPage({ params }: Props) {
 
         {phase !== "finished" && (
           <PlayerList players={room.players} currentPlayerId={playerId} />
+        )}
+
+        {phase !== "finished" && (
+          <ChatBox messages={chatMessages} currentPlayerId={playerId} onSend={sendChat} />
         )}
 
 

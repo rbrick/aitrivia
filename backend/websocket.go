@@ -17,6 +17,7 @@ type ClientMessageType string
 
 const (
 	ClientMessageTypeSubmitAnswer ClientMessageType = "submit_answer"
+	ClientMessageTypeSendChat     ClientMessageType = "send_chat"
 )
 
 type ServerMessageType string
@@ -26,11 +27,26 @@ const (
 	ServerMessageTypeError        ServerMessageType = "error"
 	ServerMessageTypeRoomState    ServerMessageType = "room_state"
 	ServerMessageTypeSessionReady ServerMessageType = "session_ready"
+	ServerMessageTypeChatMessage  ServerMessageType = "chat_message"
 )
 
 type ClientMessage struct {
-	Type   ClientMessageType `json:"type"`
-	Answer int               `json:"answer,omitempty"`
+	Type    ClientMessageType `json:"type"`
+	Payload json.RawMessage   `json:"payload,omitempty"`
+}
+
+type SubmitAnswerPayload struct {
+	Answer int `json:"answer"`
+}
+
+type SendChatPayload struct {
+	Text string `json:"text"`
+}
+
+type ChatMessage struct {
+	PlayerID   string `json:"playerId"`
+	PlayerName string `json:"playerName,omitempty"`
+	Text       string `json:"text"`
 }
 
 type ServerMessage struct {
@@ -41,6 +57,7 @@ type ServerMessage struct {
 	PointsRewarded int               `json:"pointsRewarded,omitempty"`
 	Correct        *bool             `json:"correct,omitempty"`
 	CorrectAnswer  *int              `json:"correctAnswer,omitempty"`
+	Chat           *ChatMessage      `json:"chat,omitempty"`
 }
 
 type SocketProtocol interface {
@@ -49,6 +66,7 @@ type SocketProtocol interface {
 	SessionReady(playerID string, room *Room) ServerMessage
 	RoomState(room *Room) ServerMessage
 	AnswerResult(result *AnswerResult) ServerMessage
+	ChatMessage(playerID string, playerName string, text string) ServerMessage
 }
 
 type JSONSocketProtocol struct{}
@@ -91,6 +109,17 @@ func (p JSONSocketProtocol) AnswerResult(result *AnswerResult) ServerMessage {
 		PointsRewarded: result.PointsRewarded,
 		Correct:        &result.Correct,
 		CorrectAnswer:  &result.CorrectAnswer,
+	}
+}
+
+func (p JSONSocketProtocol) ChatMessage(playerID string, playerName string, text string) ServerMessage {
+	return ServerMessage{
+		Type: ServerMessageTypeChatMessage,
+		Chat: &ChatMessage{
+			PlayerID:   playerID,
+			PlayerName: playerName,
+			Text:       text,
+		},
 	}
 }
 
@@ -204,8 +233,36 @@ func (h *GameSocketHub) handleMessage(session *melody.Session, payload []byte) {
 	switch message.Type {
 	case ClientMessageTypeSubmitAnswer:
 		h.handleSubmitAnswer(session, *message)
+	case ClientMessageTypeSendChat:
+		h.handleChatMessage(session, *message)
 	default:
 		h.writeSessionError(session, "unsupported websocket message type")
+	}
+}
+
+func (h *GameSocketHub) handleChatMessage(session *melody.Session, message ClientMessage) {
+	state, ok := sessionState(session)
+	if !ok {
+		h.writeSessionError(session, "session is missing room or player state")
+		return
+	}
+
+	var payload SendChatPayload
+	if err := json.Unmarshal(message.Payload, &payload); err != nil {
+		h.writeSessionError(session, "invalid send_chat payload")
+		return
+	}
+
+	room := h.game.GetRoomForPlayer(state.roomID, state.playerID)
+	var playerName string
+	if room != nil {
+		if player := room.GetPlayer(state.playerID); player != nil {
+			playerName = player.Name
+		}
+	}
+
+	if err := h.broadcastToRoom(state.roomID, h.protocol.ChatMessage(state.playerID, playerName, payload.Text)); err != nil {
+		log.Printf("broadcast chat message: %v", err)
 	}
 }
 
@@ -216,7 +273,13 @@ func (h *GameSocketHub) handleSubmitAnswer(session *melody.Session, message Clie
 		return
 	}
 
-	result, err := h.game.SubmitAnswer(state.roomID, state.playerID, message.Answer)
+	var payload SubmitAnswerPayload
+	if err := json.Unmarshal(message.Payload, &payload); err != nil {
+		h.writeSessionError(session, "invalid submit_answer payload")
+		return
+	}
+
+	result, err := h.game.SubmitAnswer(state.roomID, state.playerID, payload.Answer)
 	if err != nil {
 		h.writeSessionError(session, err.Error())
 		return

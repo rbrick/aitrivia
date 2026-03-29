@@ -32,7 +32,13 @@ export interface Room {
 }
 
 // WebSocket messages
-export type ServerMessageType = "session_ready" | "room_state" | "answer_result" | "error";
+export type ServerMessageType = "session_ready" | "room_state" | "answer_result" | "error" | "chat_message";
+
+export interface ChatMessage {
+  playerId: string;
+  playerName: string;
+  text: string;
+}
 
 export interface ServerMessage {
   type: ServerMessageType;
@@ -42,6 +48,7 @@ export interface ServerMessage {
   pointsRewarded?: number;
   correct?: boolean;
   correctAnswer?: number;
+  chat?: ChatMessage;
 }
 
 export interface AnswerResult {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WS_URL } from "@/lib/api";
-import type { AnswerResult, Room, ServerMessage } from "@/lib/types";
+import type { AnswerResult, ChatMessage, Room, ServerMessage } from "@/lib/types";
 
 export type GamePhase = "connecting" | "lobby" | "playing" | "finished" | "error";
 
@@ -12,7 +12,9 @@ export interface GameState {
   playerId: string | null;
   lastResult: AnswerResult | null;
   errorMessage: string | null;
+  chatMessages: ChatMessage[];
   submitAnswer: (index: number) => void;
+  sendChat: (text: string) => void;
 }
 
 export function useGameSocket(joinCode: string, playerName: string): GameState {
@@ -23,6 +25,7 @@ export function useGameSocket(joinCode: string, playerName: string): GameState {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<AnswerResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   const updatePhase = useCallback((next: GamePhase) => {
     phaseRef.current = next;
@@ -79,6 +82,10 @@ export function useGameSocket(joinCode: string, playerName: string): GameState {
         });
         updatePhase(msg.room.currentQuestion ? "playing" : "finished");
       }
+
+      if (msg.type === "chat_message" && msg.chat) {
+        setChatMessages(prev => [...prev, msg.chat!]);
+      }
     };
 
     ws.onerror = () => {
@@ -94,8 +101,12 @@ export function useGameSocket(joinCode: string, playerName: string): GameState {
   }, [joinCode, playerName, updatePhase]);
 
   const submitAnswer = useCallback((index: number) => {
-    wsRef.current?.send(JSON.stringify({ type: "submit_answer", answer: index }));
+    wsRef.current?.send(JSON.stringify({ type: "submit_answer", payload: { answer: index } }));
   }, []);
 
-  return { phase, room, playerId, lastResult, errorMessage, submitAnswer };
+  const sendChat = useCallback((text: string) => {
+    wsRef.current?.send(JSON.stringify({ type: "send_chat", payload: { text } }));
+  }, []);
+
+  return { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat };
 }
