@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import type { Player } from "@/lib/types";
 import { PlayerList } from "./PlayerList";
 
@@ -8,6 +11,7 @@ interface Props {
 }
 
 export function GameOver({ players, currentPlayerId, joinCode }: Props) {
+  const router = useRouter();
   const sorted = [...players].sort((a, b) => b.points - a.points);
   const winner = sorted[0];
 
@@ -25,6 +29,12 @@ export function GameOver({ players, currentPlayerId, joinCode }: Props) {
           </>
         )}
         <p className="text-xs text-zinc-600 pt-1">Room {joinCode}</p>
+        <button
+          onClick={() => router.push("/")}
+          className="mt-2 rounded-full bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-500 transition-colors"
+        >
+          Play Again
+        </button>
       </div>
       <PlayerList players={players} currentPlayerId={currentPlayerId} />
     </div>

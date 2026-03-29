@@ -60,7 +60,14 @@ export function useGameSocket(joinCode: string, playerName: string): GameState {
         } else {
           updatePhase(hasQuestion ? "playing" : "lobby");
         }
-        setLastResult(null);
+        // Preserve lastResult when the same question is still active (e.g. another player answered).
+        // Only clear it when the question changes or ends.
+        const incomingQuestionId = msg.room?.currentQuestion?.question.id ?? null;
+        setLastResult(prev => {
+          if (prev === null) return null;
+          const prevQuestionId = prev.room?.currentQuestion?.question.id ?? null;
+          return prevQuestionId === incomingQuestionId ? prev : null;
+        });
       }
 
       if (msg.type === "answer_result" && msg.room) {

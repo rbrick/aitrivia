@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import { RoomLobby } from "@/components/RoomLobby";
 import { QuestionCard } from "@/components/QuestionCard";
@@ -17,6 +17,7 @@ export default function RoomPage({ params }: Props) {
   const searchParams = useSearchParams();
   const playerName = searchParams.get("name") ?? "";
 
+  const router = useRouter();
   const { phase, room, playerId, lastResult, errorMessage, submitAnswer } = useGameSocket(
     joinCode,
     playerName
@@ -38,9 +39,17 @@ export default function RoomPage({ params }: Props) {
             <h1 className="text-lg font-bold tracking-tight">AI Trivia</h1>
             <p className="text-xs text-zinc-500">Room <span className="font-mono text-zinc-400">{joinCode}</span></p>
           </div>
-          <span className="rounded-full bg-zinc-700 px-3 py-1 text-xs text-zinc-300">
-            {room.players.length} player{room.players.length !== 1 ? "s" : ""}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-zinc-700 px-3 py-1 text-xs text-zinc-300">
+              {room.players.length} player{room.players.length !== 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={() => router.push("/")}
+              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+            >
+              Leave
+            </button>
+          </div>
         </header>
 
         {phase === "lobby" && (

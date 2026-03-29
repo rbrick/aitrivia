@@ -31,13 +31,15 @@ const (
 	You should take in JSON input in the following format for generating questions for multiple categories:
 	{
 	  "categories": ["Category 1", "Category 2", ...],
-	  "numQuestions": 5 // number of questions to generate for each category
+	  "numQuestions": 5 // number of questions to generate IN TOTAL
 	}
 
 	and generate questions for each category accordingly. The response should be in the same format as mentioned above for multiple categories.
 
 	Randomize the questions and options each time, so that the same input can yield different questions.
 	Randomize the order of the options for each question, but ensure that the correct answer index is updated accordingly to reflect the new order of options.
+
+	ENSURE THE CORRECT ANSWER IS PRESENT IN THE OPTIONS AND THAT THE ANSWER INDEX IS ACCURATE.
 	`
 )
 

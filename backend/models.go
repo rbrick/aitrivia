@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"maps"
 	"slices"
 	"strings"
@@ -20,7 +21,7 @@ type Question struct {
 	ID       string   `json:"id"`
 	Text     string   `json:"text"`
 	Options  []string `json:"options"`
-	Answer   int      `json:"-"`
+	Answer   *int     `json:"answer,omitempty"`
 	Category string   `json:"category"`
 }
 
@@ -78,11 +79,16 @@ func (r *Room) NextQuestion() *CurrentQuestion {
 	}
 }
 
+func (r *Room) CloneForPlayer(playerID string) *Room {
+	hasAnswered := r.CurrentQuestion != nil && r.CurrentQuestion.Answered[playerID]
+	return r.Clone(hasAnswered)
+}
+
 func (r *Room) Active() bool {
 	return len(r.Players) > 0
 }
 
-func (r *Room) Clone() *Room {
+func (r *Room) Clone(withAnswers bool) *Room {
 	players := slices.Clone(r.Players)
 	questions := slices.Clone(r.Questions)
 
@@ -101,6 +107,9 @@ func (r *Room) Clone() *Room {
 			StartTime: r.CurrentQuestion.StartTime,
 			EndTime:   r.CurrentQuestion.EndTime,
 			Answered:  maps.Clone(r.CurrentQuestion.Answered),
+		}
+		if !withAnswers {
+			currentQuestion.Question.Answer = nil
 		}
 	}
 
@@ -170,7 +179,13 @@ func (r *Room) SubmitAnswer(playerID string, answer int) (SubmitAnswerResult, er
 
 	r.CurrentQuestion.Answered[playerID] = true
 
-	if r.CurrentQuestion.Question.Answer == answer {
+	if r.CurrentQuestion.Question.Answer == nil {
+		return SubmitAnswerResult{}, newAPIError(500, "question has no answer configured")
+	}
+	correctAnswer := *r.CurrentQuestion.Question.Answer
+
+	log.Println(r.CurrentQuestion.Question)
+	if correctAnswer == answer {
 		// TODO(ryan): configurable point rewarding system
 		// example: Who Wants to Be a Millionaire style rewarding where points increase for each subsequent question
 		// or a system where points are based on how quickly the player answered the question
@@ -179,14 +194,14 @@ func (r *Room) SubmitAnswer(playerID string, answer int) (SubmitAnswerResult, er
 		return SubmitAnswerResult{
 			PointsRewarded: 10,
 			Correct:        true,
-			CorrectAnswer:  r.CurrentQuestion.Question.Answer,
+			CorrectAnswer:  correctAnswer,
 		}, nil
 	}
 
 	return SubmitAnswerResult{
 		PointsRewarded: 0,
 		Correct:        false,
-		CorrectAnswer:  r.CurrentQuestion.Question.Answer,
+		CorrectAnswer:  correctAnswer,
 	}, nil
 }
 
@@ -225,7 +240,7 @@ func (g *Game) Tick() []*Room {
 			previousQuestion := room.CurrentQuestion
 			room.Tick()
 			if previousQuestion != room.CurrentQuestion {
-				changedRooms = append(changedRooms, room.Clone())
+				changedRooms = append(changedRooms, room.Clone(false))
 			}
 		}
 	}
@@ -249,7 +264,19 @@ func (g *Game) GetRoomByJoinCode(joinCode string) *Room {
 		return nil
 	}
 
-	return room.Clone()
+	return room.Clone(false)
+}
+
+func (g *Game) GetRoomForPlayer(roomID, playerID string) *Room {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	room, err := g.roomLocked(roomID)
+	if err != nil {
+		return nil
+	}
+
+	return room.CloneForPlayer(playerID)
 }
 
 func (g *Game) GetRoom(roomID string) *Room {
@@ -261,11 +288,10 @@ func (g *Game) GetRoom(roomID string) *Room {
 		return nil
 	}
 
-	return room.Clone()
+	return room.Clone(false)
 }
 
 func (g *Game) generateQuestions(roomConfig *RoomConfig) []Question {
-
 	questions, err := g.agent.GenerateQuestions(context.Background(), roomConfig.Categories, 10)
 	if err != nil {
 		return []Question{}
@@ -300,7 +326,7 @@ func (g *Game) CreateRoom(config *RoomConfig) *Room {
 	g.rooms[room.ID] = room
 	g.joinCodes[joinCode] = room.ID
 
-	return room.Clone()
+	return room.Clone(false)
 }
 
 func (g *Game) JoinRoom(joinCode string, playerName string) (*Room, *Player, error) {
@@ -332,7 +358,7 @@ func (g *Game) JoinRoom(joinCode string, playerName string) (*Room, *Player, err
 
 	playerCopy := player
 
-	return room.Clone(), &playerCopy, nil
+	return room.Clone(false), &playerCopy, nil
 }
 
 func (g *Game) LeaveRoom(roomID string, playerID string) (*Room, error) {
@@ -353,7 +379,7 @@ func (g *Game) LeaveRoom(roomID string, playerID string) (*Room, error) {
 		return nil, nil
 	}
 
-	return room.Clone(), nil
+	return room.Clone(false), nil
 }
 
 func (g *Game) SubmitAnswer(roomID string, playerID string, answer int) (*AnswerResult, error) {
@@ -371,7 +397,7 @@ func (g *Game) SubmitAnswer(roomID string, playerID string, answer int) (*Answer
 	}
 
 	return &AnswerResult{
-		Room:           room.Clone(),
+		Room:           room.CloneForPlayer(playerID),
 		PointsRewarded: result.PointsRewarded,
 		Correct:        result.Correct,
 		CorrectAnswer:  result.CorrectAnswer,

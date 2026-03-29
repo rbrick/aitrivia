@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
-const PRESET_CATEGORIES = ["Science", "History", "Geography", "Sports", "Music", "Movies", "Technology", "Nature"];
+const PRESET_CATEGORIES = ["Science", "History", "Geography", "Sports", "Music", "Movies", "Technology", "Nature", "U.S. Presidents", "Solar System", "Astronomy"];
 
 export function CreateRoomForm() {
   const router = useRouter();

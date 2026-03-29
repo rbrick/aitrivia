@@ -158,7 +158,7 @@ func (h *GameSocketHub) handleConnect(session *melody.Session) {
 		return
 	}
 
-	room := h.game.GetRoom(state.roomID)
+	room := h.game.GetRoomForPlayer(state.roomID, state.playerID)
 	if room == nil {
 		h.closeSession(session, "close websocket for missing room")
 		return
@@ -226,7 +226,7 @@ func (h *GameSocketHub) handleSubmitAnswer(session *melody.Session, message Clie
 		log.Printf("write answer_result message: %v", err)
 	}
 
-	if err := h.BroadcastRoomState(result.Room.ID); err != nil {
+	if err := h.broadcastRoomState(result.Room.ID, session); err != nil {
 		log.Printf("broadcast room state after answer: %v", err)
 	}
 }
@@ -236,12 +236,37 @@ func (h *GameSocketHub) broadcastToRoom(roomID string, message ServerMessage) er
 }
 
 func (h *GameSocketHub) broadcastRoomState(roomID string, excludedSession *melody.Session) error {
-	room := h.game.GetRoom(roomID)
-	if room == nil {
-		return nil
+	sessions, err := h.melody.Sessions()
+	if err != nil {
+		return err
 	}
 
-	return h.broadcastToRoomExcept(roomID, h.protocol.RoomState(room), excludedSession)
+	for _, session := range sessions {
+		if session == excludedSession {
+			continue
+		}
+
+		sessionRoomID, ok := sessionString(session, sessionRoomIDKey)
+		if !ok || sessionRoomID != roomID {
+			continue
+		}
+
+		playerID, ok := sessionString(session, sessionPlayerIDKey)
+		if !ok {
+			continue
+		}
+
+		room := h.game.GetRoomForPlayer(roomID, playerID)
+		if room == nil {
+			continue
+		}
+
+		if err := h.writeSessionMessage(session, h.protocol.RoomState(room)); err != nil {
+			log.Printf("broadcast room state to player %s: %v", playerID, err)
+		}
+	}
+
+	return nil
 }
 
 func (h *GameSocketHub) broadcastToRoomExcept(roomID string, message ServerMessage, excludedSession *melody.Session) error {
