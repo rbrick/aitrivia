@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGameSocket } from "@/hooks/useGameSocket";
 import { RoomLobby } from "@/components/RoomLobby";
@@ -16,13 +16,54 @@ interface Props {
 export default function RoomPage({ params }: Props) {
   const { joinCode } = use(params);
   const searchParams = useSearchParams();
-  const playerName = searchParams.get("name") ?? "";
+  const [playerName, setPlayerName] = useState(searchParams.get("name") ?? "");
+  const [pendingName, setPendingName] = useState("");
 
   const router = useRouter();
   const { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat, startGame } = useGameSocket(
     joinCode,
     playerName
   );
+
+  if (!playerName) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-zinc-900 text-zinc-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm space-y-4">
+          <div className="text-center space-y-1">
+            <h1 className="text-xl font-bold tracking-tight">Join Room</h1>
+            <p className="text-sm text-zinc-400">
+              Enter your name to join <span className="font-mono text-zinc-300">{joinCode}</span>
+            </p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const trimmed = pendingName.trim();
+              if (trimmed) setPlayerName(trimmed);
+            }}
+            className="space-y-3"
+          >
+            <input
+              autoFocus
+              type="text"
+              placeholder="Your name"
+              value={pendingName}
+              onChange={(e) => setPendingName(e.target.value)}
+              maxLength={32}
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-violet-500 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!pendingName.trim()}
+              className="w-full rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+            >
+              Join
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "error") {
     return <FullPageMessage title="Connection Error" body={errorMessage ?? "Something went wrong."} />;
