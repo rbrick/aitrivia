@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	alphanumeric = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	alphanumeric = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
 
 func generateID(length int) string {

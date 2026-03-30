@@ -18,6 +18,7 @@ type ClientMessageType string
 const (
 	ClientMessageTypeSubmitAnswer ClientMessageType = "submit_answer"
 	ClientMessageTypeSendChat     ClientMessageType = "send_chat"
+	ClientMessageTypeStartGame    ClientMessageType = "start_game"
 )
 
 type ServerMessageType string
@@ -235,8 +236,28 @@ func (h *GameSocketHub) handleMessage(session *melody.Session, payload []byte) {
 		h.handleSubmitAnswer(session, *message)
 	case ClientMessageTypeSendChat:
 		h.handleChatMessage(session, *message)
+	case ClientMessageTypeStartGame:
+		h.handleStartGame(session)
 	default:
 		h.writeSessionError(session, "unsupported websocket message type")
+	}
+}
+
+func (h *GameSocketHub) handleStartGame(session *melody.Session) {
+	state, ok := sessionState(session)
+	if !ok {
+		h.writeSessionError(session, "session is missing room or player state")
+		return
+	}
+
+	_, err := h.game.StartGame(state.roomID, state.playerID)
+	if err != nil {
+		h.writeSessionError(session, err.Error())
+		return
+	}
+
+	if err := h.BroadcastRoomState(state.roomID); err != nil {
+		log.Printf("broadcast room state after start: %v", err)
 	}
 }
 

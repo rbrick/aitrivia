@@ -42,6 +42,8 @@ type RoomConfig struct {
 type Room struct {
 	ID        string      `json:"id"`
 	JoinCode  string      `json:"joinCode"`
+	HostID    string      `json:"hostId"`
+	Started   bool        `json:"started"`
 	Players   []Player    `json:"players"`
 	Questions []Question  `json:"-"`
 	Config    *RoomConfig `json:"config"`
@@ -50,6 +52,9 @@ type Room struct {
 }
 
 func (r *Room) Tick() {
+	if !r.Started {
+		return
+	}
 
 	if r.CurrentQuestion != nil {
 		// check if the current question has expired
@@ -116,6 +121,8 @@ func (r *Room) Clone(withAnswers bool) *Room {
 	return &Room{
 		ID:              r.ID,
 		JoinCode:        r.JoinCode,
+		HostID:          r.HostID,
+		Started:         r.Started,
 		Players:         players,
 		Questions:       questions,
 		Config:          config,
@@ -132,10 +139,15 @@ func (r *Room) Join(player Player) error {
 
 	r.Players = append(r.Players, player)
 
-	if r.CurrentQuestion == nil {
-		r.CurrentQuestion = r.NextQuestion()
-	}
+	return nil
+}
 
+func (r *Room) Start() error {
+	if r.Started {
+		return newAPIError(409, "game has already started")
+	}
+	r.Started = true
+	r.CurrentQuestion = r.NextQuestion()
 	return nil
 }
 
@@ -330,7 +342,7 @@ func (g *Game) CreateRoom(config *RoomConfig) *Room {
 }
 
 func (g *Game) JoinRoom(joinCode string, playerName string) (*Room, *Player, error) {
-	trimmedCode := strings.TrimSpace(joinCode)
+	trimmedCode := strings.ToLower(strings.TrimSpace(joinCode))
 	trimmedPlayerName := strings.TrimSpace(playerName)
 	if trimmedCode == "" {
 		return nil, nil, newAPIError(400, "room code is required")
@@ -351,6 +363,9 @@ func (g *Game) JoinRoom(joinCode string, playerName string) (*Room, *Player, err
 		ID:     generateUUID(),
 		Name:   trimmedPlayerName,
 		Points: 0,
+	}
+	if room.HostID == "" {
+		room.HostID = player.ID
 	}
 	if err := room.Join(player); err != nil {
 		return nil, nil, err
@@ -377,6 +392,30 @@ func (g *Game) LeaveRoom(roomID string, playerID string) (*Room, error) {
 	if !room.Active() {
 		g.deleteRoomLocked(room.ID, room.JoinCode)
 		return nil, nil
+	}
+
+	if room.HostID == playerID {
+		room.HostID = room.Players[0].ID
+	}
+
+	return room.Clone(false), nil
+}
+
+func (g *Game) StartGame(roomID, playerID string) (*Room, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	room, err := g.roomLocked(roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	if room.HostID != playerID {
+		return nil, newAPIError(403, "only the host can start the game")
+	}
+
+	if err := room.Start(); err != nil {
+		return nil, err
 	}
 
 	return room.Clone(false), nil
