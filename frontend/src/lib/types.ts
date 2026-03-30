@@ -26,6 +26,8 @@ export interface RoomConfig {
 export interface Room {
   id: string;
   joinCode: string;
+  hostId: string;
+  started: boolean;
   players: Player[];
   config: RoomConfig;
   currentQuestion?: CurrentQuestion;

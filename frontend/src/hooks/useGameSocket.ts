@@ -15,6 +15,7 @@ export interface GameState {
   chatMessages: ChatMessage[];
   submitAnswer: (index: number) => void;
   sendChat: (text: string) => void;
+  startGame: () => void;
 }
 
 export function useGameSocket(joinCode: string, playerName: string): GameState {
@@ -108,5 +109,9 @@ export function useGameSocket(joinCode: string, playerName: string): GameState {
     wsRef.current?.send(JSON.stringify({ type: "send_chat", payload: { text } }));
   }, []);
 
-  return { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat };
+  const startGame = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: "start_game" }));
+  }, []);
+
+  return { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat, startGame };
 }

@@ -19,7 +19,7 @@ export default function RoomPage({ params }: Props) {
   const playerName = searchParams.get("name") ?? "";
 
   const router = useRouter();
-  const { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat } = useGameSocket(
+  const { phase, room, playerId, lastResult, errorMessage, chatMessages, submitAnswer, sendChat, startGame } = useGameSocket(
     joinCode,
     playerName
   );
@@ -54,7 +54,12 @@ export default function RoomPage({ params }: Props) {
         </header>
 
         {phase === "lobby" && (
-          <RoomLobby joinCode={joinCode} playerCount={room.players.length} />
+          <RoomLobby
+            joinCode={joinCode}
+            playerCount={room.players.length}
+            isHost={room.hostId === playerId}
+            onStart={startGame}
+          />
         )}
 
         {phase === "playing" && room.currentQuestion && (
